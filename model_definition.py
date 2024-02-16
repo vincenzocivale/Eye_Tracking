@@ -7,10 +7,7 @@ from data_preprocessing import preprocess_eye_images
 1) Fase di Pre-Addestramento del Modello Base: In questa fase, il modello base, un'architettura di rete neurale 
    convoluzionale (CNN) multilivello feed-forward, viene pre-addestrato utilizzando un sottoinsieme del dataset 
    pubblicamente disponibile MIT GazeCapture. Le immagini degli occhi sono utilizzate come input, e il modello è 
-   addestrato per predire la posizione dello sguardo sullo schermo del telefono. Durante questo processo, vengono 
-   utilizzate tecniche di data augmentation, come il ritaglio casuale dell'occhio e l'alterazione casuale della 
-   posizione dei landmark degli occhi, per rendere il modello più robusto a variazioni nelle condizioni di illuminazione, 
-   movimento della fotocamera e rumore.
+   addestrato per predire la posizione dello sguardo sullo schermo del telefono.
 
 2) Fase di Estrazione delle Feature: Dopo il pre-addestramento, viene estratta una rappresentazione ad alto livello 
    dal modello base ottimizzato. In particolare, l'output dell'ultimo strato del modello base viene utilizzato come 
