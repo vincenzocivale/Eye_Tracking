@@ -1,70 +1,70 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import tensorflow as tf
+from sklearn.svm import SVR
 
-# Definizione del modello di rete neurale per il gaze-tracking
-class GazeTrackingModel(nn.Module):
-    def __init__(self):
-        super(GazeTrackingModel, self).__init__()
+""" 
 
-        # Definizione delle torri ConvNet per gli occhi sinistro e destro
-        self.left_eye_tower = self.create_conv_tower()
-        self.right_eye_tower = self.create_conv_tower()
+1) Fase di Pre-Addestramento del Modello Base: In questa fase, il modello base, un'architettura di rete neurale 
+   convoluzionale (CNN) multilivello feed-forward, viene pre-addestrato utilizzando un sottoinsieme del dataset 
+   pubblicamente disponibile MIT GazeCapture. Le immagini degli occhi sono utilizzate come input, e il modello è 
+   addestrato per predire la posizione dello sguardo sullo schermo del telefono. Durante questo processo, vengono 
+   utilizzate tecniche di data augmentation, come il ritaglio casuale dell'occhio e l'alterazione casuale della 
+   posizione dei landmark degli occhi, per rendere il modello più robusto a variazioni nelle condizioni di illuminazione, 
+   movimento della fotocamera e rumore.
 
-        # Definizione dei layer fully connected per i landmark degli occhi
-        self.fc_landmarks = nn.Sequential(
-            nn.Linear(4, 128),
-            nn.ReLU(),
-            nn.Linear(128, 16),
-            nn.ReLU(),
-            nn.Linear(16, 2)
-        )
+2) Fase di Estrazione delle Feature: Dopo il pre-addestramento, viene estratta una rappresentazione ad alto livello 
+   dal modello base ottimizzato. In particolare, l'output dell'ultimo strato del modello base viene utilizzato come 
+   rappresentazione delle feature per ciascuna immagine di calibrazione.
 
-        # Definizione dei layer fully connected per la combinazione delle torri
-        self.fc_combine_towers = nn.Sequential(
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, 16),
-            nn.ReLU(),
-            nn.Linear(16, 2)
-        )
+3) Fase di Addestramento del Modello Personalizzato: Nell'ultima fase, viene addestrato un modello di regressione 
+   vettoriale di supporto (SVR) per ogni partecipante e blocco di tempo. Le feature estratte dalle immagini di calibrazione 
+   vengono utilizzate come input, mentre i dati reali dello sguardo vengono utilizzati come output per addestrare 
+   il modello SVR. Durante l'addestramento, viene utilizzata una tecnica di "leave-one-task-out setup", in cui i dati 
+   di calibrazione dell'inseguimento liscio vengono utilizzati per l'addestramento e i dati di calibrazione dei punti 
+   vengono utilizzati per la valutazione. Infine, il modello personalizzato addestrato per ciascun partecipante viene 
+   utilizzato per stimare lo sguardo durante l'attività di calibrazione del punto.
+   
+"""
 
-    def create_conv_tower(self):
-        # Funzione per creare una torre ConvNet
-        return nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=7, stride=2),
-            nn.ReLU(),
-            nn.AvgPool2d(2),
-            nn.Conv2d(32, 64, kernel_size=5, stride=2),
-            nn.ReLU(),
-            nn.AvgPool2d(2),
-            nn.Conv2d(64, 128, kernel_size=3, stride=1),
-            nn.ReLU(),
-            nn.AvgPool2d(2)
-        )
+# Definizione dell'architettura del modello di base
+def create_model(input_shape):
+    model = tf.keras.Sequential([
+        # Convolutional layers
+        tf.keras.layers.Conv2D(32, (7, 7), strides=(2, 2), activation='relu', input_shape=input_shape),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(64, (5, 5), strides=(2, 2), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        tf.keras.layers.Conv2D(128, (3, 3), strides=(1, 1), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2, 2)),
+        # Flatten layer to transition from convolutional layers to fully connected layers
+        tf.keras.layers.Flatten(),
+        # Fully connected layers
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(8, activation='relu'),
+        tf.keras.layers.Dense(4, activation='relu'),
+        # Last fully connected layer without activation
+        tf.keras.layers.Dense(2)
+    ])
 
-    def forward(self, left_eye, right_eye):
-        # Passa le regioni degli occhi attraverso le torri ConvNet
-        left_eye_features = self.left_eye_tower(left_eye)
-        right_eye_features = self.right_eye_tower(right_eye)
+    # Configurazione dei parametri dell'addestramento e della regolarizzazione
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.016, beta_1=0.9, beta_2=0.999, epsilon=1e-7),
+                  loss='mean_squared_error',
+                  metrics=['accuracy'])
 
-        # Riscalamento delle feature maps per la concatenazione
-        left_eye_features = left_eye_features.view(left_eye_features.size(0), -1)
-        right_eye_features = right_eye_features.view(right_eye_features.size(0), -1)
+    return model
 
-        # Passa i landmark degli occhi attraverso i layer fully connected
-        landmarks_left = self.fc_landmarks(left_eye_features)
-        landmarks_right = self.fc_landmarks(right_eye_features)
 
-        # Combina le feature maps delle torri e passa attraverso i layer fully connected
-        combined_towers = torch.cat((left_eye_features, right_eye_features), dim=1)
-        gaze_output = self.fc_combine_towers(combined_towers)
+# Creazione del modello
+model = create_model()
 
-        return gaze_output
+# Compilazione del modello
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+              metrics=['accuracy'])
 
-# Inizializzazione del modello
-gaze_model = GazeTrackingModel()
-
-# Definizione di una loss function e un ottimizzatore
-criterion = nn.MSELoss()
-optimizer = optim.Adam(gaze_model.parameters(), lr=0.001)
+# Addestramento del modello personalizzato per ogni partecipante
+def train_personalized_model(calibration_data_features, ground_truth_gaze):
+    personalized_model = SVR(kernel='rbf', C=20.0, gamma=0.06)
+    personalized_model.fit(calibration_data_features, ground_truth_gaze)
+    return personalized_model
