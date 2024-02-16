@@ -1,5 +1,6 @@
 import tensorflow as tf
 from sklearn.svm import SVR
+from data_preprocessing import preprocess_eye_images
 
 """ 
 
@@ -22,6 +23,9 @@ from sklearn.svm import SVR
    di calibrazione dell'inseguimento liscio vengono utilizzati per l'addestramento e i dati di calibrazione dei punti 
    vengono utilizzati per la valutazione. Infine, il modello personalizzato addestrato per ciascun partecipante viene 
    utilizzato per stimare lo sguardo durante l'attività di calibrazione del punto.
+   
+4) Fase di inferenza, in cui il modello di base pre-addestrato e il modello di regressione vettoriale di supporto (SVR) 
+   personalizzato vengono applicati in sequenza a un'immagine per generare la stima finale dello sguardo personalizzata
    
 """
 
@@ -56,16 +60,16 @@ def create_model(input_shape):
 
 
 # Creazione del modello
-model = create_model()
+base_model = create_model()
 
 # Compilazione del modello base
-model.compile(optimizer='adam',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+base_model.compile(optimizer='adam',
+                   loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                   metrics=['accuracy'])
 
 
 # Estrai le feature dall'ultimo layer del modello base
-base_model_features = tf.keras.Model(inputs=model.input, outputs=model.layers[-2].output)
+base_model_features = tf.keras.Model(inputs=base_model.input, outputs=base_model.layers[-2].output)
 
 # Addestramento del modello personalizzato per ogni partecipante
 def train_personalized_model(calibration_data_features, ground_truth_gaze):
@@ -79,3 +83,33 @@ def extract_calibration_features(calibration_frames):
     # Utilizza base_model_features per ottenere le feature dal modello base
     calibration_features = base_model_features.predict(calibration_frames)
     return calibration_features
+
+
+calibration_data_frames = [...]  # Frame di calibrazione
+ground_truth_gaze = [...]  # Dati reali dello sguardo per l'addestramento del modello personalizzato
+
+# Estrai le feature di calibrazione
+calibration_data_features = extract_calibration_features(calibration_data_frames)
+
+# Addestramento del modello personalizzato SVR
+personalized_model = train_personalized_model(calibration_data_features, ground_truth_gaze)
+
+
+# Funzione per l'inferenza dello sguardo personalizzato
+def infer_custom_gaze(image_path=r"C:\Users\cical\Downloads\msg.jpg", land_mark_predictor_path=r"C:\Users\cical\Downloads\shape_predictor_68_face_landmarks.dat\shape_predictor_68_face_landmarks.dat"):
+    # 1. Pre-elaborazione dell'immagine (assicurati di pre-elaborare l'immagine come durante l'addestramento)
+    preprocessed_image = preprocess_eye_images(image_path, land_mark_predictor_path)
+
+    # 2. Estrai le feature dall'immagine utilizzando il modello di base pre-addestrato
+    base_model_features = base_model.predict(preprocessed_image)
+
+    # 3. Applica il modello di regressione SVR personalizzato per ottenere la stima dello sguardo personalizzata
+    personalized_gaze = personalized_model.predict(base_model_features)
+
+    return personalized_gaze
+
+
+
+estimated_gaze = infer_custom_gaze()  # Stima dello sguardo personalizzata
+print("Estimated gaze:", estimated_gaze)
+
