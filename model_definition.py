@@ -58,24 +58,13 @@ def create_model(input_shape):
 # Creazione del modello
 model = create_model()
 
-# Compilazione del modello base
+# Compilazione del modello
 model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
-
-
-# Estrai le feature dall'ultimo layer del modello base
-base_model_features = tf.keras.Model(inputs=model.input, outputs=model.layers[-2].output)
 
 # Addestramento del modello personalizzato per ogni partecipante
 def train_personalized_model(calibration_data_features, ground_truth_gaze):
     personalized_model = SVR(kernel='rbf', C=20.0, gamma=0.06)
     personalized_model.fit(calibration_data_features, ground_truth_gaze)
     return personalized_model
-
-# Funzione per estrarre le feature di calibrazione
-def extract_calibration_features(calibration_frames):
-    # Implementa la logica per estrarre le feature di calibrazione
-    # Utilizza base_model_features per ottenere le feature dal modello base
-    calibration_features = base_model_features.predict(calibration_frames)
-    return calibration_features
