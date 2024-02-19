@@ -29,27 +29,57 @@ from sklearn.svm import SVR
 """Manca da aggiungere la normalizzazione del batch perchè non so dove tra quali livelli inserirlo"""
 # Definizione dell'architettura del modello di base
 def build_base_model(input_shape):
-    model = models.Sequential([
-        # Convolutional layers
+    # Define ConvNet towers for each eye
+    convnet_tower = models.Sequential([
         layers.Conv2D(32, (7, 7), strides=(2, 2), activation='relu', input_shape=input_shape),
         layers.AveragePooling2D((2, 2)),
         layers.Conv2D(64, (5, 5), strides=(2, 2), activation='relu'),
         layers.AveragePooling2D((2, 2)),
         layers.Conv2D(128, (3, 3), strides=(1, 1), activation='relu'),
         layers.AveragePooling2D((2, 2)),
-        # Flatten layer to transition from convolutional layers to fully connected layers
-        layers.Flatten(),
-        # Fully connected layers
-        layers.Dense(128, activation='relu'),
-        layers.Dense(16, activation='relu'),
-        layers.Dense(16, activation='relu'),
-        layers.Dense(8, activation='relu'),
-        layers.Dense(4, activation='relu'),
-        # Last fully connected layer without activation
-        layers.Dense(2)
     ])
 
-    # Definizione della programmazione del tasso di apprendimento
+    # Define fully connected layers for landmarks
+    landmarks_fc = models.Sequential([
+        layers.Dense(128, activation='relu', name='FC1'),
+        layers.Dense(16, activation='relu', name='FC2'),
+        layers.Dense(16, activation='relu', name='FC3')
+    ])
+
+    # Define additional fully connected layers
+    combined_fc = models.Sequential([
+        layers.Dense(8, activation='relu', name='FC4'),
+        layers.Dense(4, activation='relu', name='FC5')
+    ])
+
+    # Define regression head (l'ultimo layer)
+    regression_head = layers.Dense(2)
+
+    # Input placeholders for eye images and landmarks
+    eye_image_right = layers.Input(shape=input_shape)
+    eye_image_left = layers.Input(shape=input_shape)
+    eye_landmarks = layers.Input(shape=(4, 2))  # Inner and outer eye corner landmarks
+
+    # Process eye images through ConvNet towers
+    processed_image_right = convnet_tower(eye_image_right)
+    processed_image_left = convnet_tower(eye_image_left)
+
+    # Process eye landmarks through fully connected layers
+    processed_landmarks = landmarks_fc(eye_landmarks)
+
+    # Combine features from ConvNet towers and fully connected layers
+    combined_features = layers.concatenate([processed_image_right, processed_image_left, processed_landmarks])
+
+    # Combine features with additional fully connected layers
+    combined_features = combined_fc(combined_features)
+
+    # Output regression
+    output = regression_head(combined_features)
+
+    # Define the model
+    model = models.Model(inputs=[eye_image_right, eye_image_left, eye_landmarks], outputs=output)
+
+    # Define learning rate schedule
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=.016,
         decay_steps=8000,
