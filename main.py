@@ -10,6 +10,6 @@ def main():
     # Carica l'immagine
     image = cv2.imread(r"C:\Users\cical\Downloads\msg.jpg")
 
-    right_eye, left_eye = dp.detect_eyes(face_detector, landmark_predictor, image)
+    eye_landmarks, right_eye_image, left_eye_image = dp.detect_eyes(face_detector, landmark_predictor, image)
 
-    right_eye, left_eye = dp.preprocess_eye_images(right_eye, left_eye)
+    right_eye_image, left_eye_image = dp.preprocess_eye_images(right_eye_image, left_eye_image)

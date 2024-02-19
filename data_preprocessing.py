@@ -7,7 +7,7 @@ from torchvision import transforms
 
 
 # Funzione che dato l'immagine in ingresso e il modello da utilizzare, restituisce l'immagine dell'occhio destro e sinistro,
-# dimensioni 128x128. Con l'immagine dell'occhio sinistro specchiata per facilitare l'addestramento.
+# dimensioni 128x128 e i landmarks. Con l'immagine dell'occhio sinistro specchiata per facilitare l'addestramento.
 def detect_eyes(face_detector, landmark_predictor, image):
     # Converti l'immagine in scala di grigi (Dlib funziona meglio su immagini in scala di grigi)
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -45,8 +45,10 @@ def detect_eyes(face_detector, landmark_predictor, image):
         # Rifletti l'immagine dell'occhio sinistro orizzontalmente per semplificare l'addestramento successivo
         left_eye_image = cv2.flip(left_eye_image, 1)
 
-        return right_eye_image, left_eye_image
+        # Aggiungi le coordinate dei landmark agli elenchi
+        eye_landmarks = (right_eye_coords, left_eye_coords)
 
+        return eye_landmarks, right_eye_image, left_eye_image
 
 def plot_eyes(right_eye_image, left_eye_image):
     # Plotta le porzioni ritagliate degli occhi
@@ -86,17 +88,3 @@ def preprocess_eye_images(image_path=r"C:\Users\cical\Downloads\msg.jpg", land_m
     left_eye = left_eye.unsqueeze(0)
 
     return right_eye, left_eye
-
-
-
-# Carica il rilevatore del volto di Dlib
-face_detector = dlib.get_frontal_face_detector()
-landmark_predictor = dlib.shape_predictor(r"C:\Users\cical\Downloads\shape_predictor_68_face_landmarks.dat\shape_predictor_68_face_landmarks.dat")
-
-# Carica l'immagine
-image = cv2.imread(r"C:\Users\cical\Downloads\msg.jpg")
-
-right_eye, left_eye = detect_eyes(face_detector, landmark_predictor, image)
-
-right_eye, left_eye = preprocess_eye_images(right_eye,left_eye)
-

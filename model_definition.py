@@ -29,6 +29,7 @@ from sklearn.svm import SVR
 """Manca da aggiungere la normalizzazione del batch perchè non so dove tra quali livelli inserirlo"""
 # Definizione dell'architettura del modello di base
 def build_base_model(input_shape):
+
     # Define ConvNet towers for each eye
     convnet_tower = models.Sequential([
         layers.Conv2D(32, (7, 7), strides=(2, 2), activation='relu', input_shape=input_shape),
@@ -52,10 +53,9 @@ def build_base_model(input_shape):
         layers.Dense(4, activation='relu', name='FC5')
     ])
 
-    # Define regression head (l'ultimo layer)
+    # Define regression head (l'ultimo layer FC6)
     regression_head = layers.Dense(2)
 
-    # Input placeholders for eye images and landmarks
     eye_image_right = layers.Input(shape=input_shape)
     eye_image_left = layers.Input(shape=input_shape)
     eye_landmarks = layers.Input(shape=(4, 2))  # Inner and outer eye corner landmarks
@@ -110,9 +110,6 @@ def train_base_model(dataset, batch_size=256, train_steps=30000):
 
     return model
 
-input_shape=(128, 128, 3)
-# Creazione del modello
-base_model = build_base_model(input_shape)
 
 def fine_tune_base_model(base_model, calibration_data, batch_size=256, train_steps=30000):
 
